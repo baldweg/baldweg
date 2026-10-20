@@ -48,8 +48,8 @@ export function holidaysFor(state: string, region: Region, from: string, to: str
   return result;
 }
 
-export function selectable(key: string, holidays: HolidayMap) {
-  return !weekend(parseISO(key)) && !holidays.has(key);
+export function selectable(key: string, holidays: HolidayMap, workWeekends = false) {
+  return (workWeekends || !weekend(parseISO(key))) && !holidays.has(key);
 }
 
 export function dayCost(key: string, halfDays: boolean) {
@@ -64,9 +64,9 @@ export function monthDays(month: Date) {
   return eachDayOfInterval({ start: startOfMonth(month), end: endOfMonth(month) });
 }
 
-export function chooseRange(from: string, to: string, holidays: HolidayMap) {
+export function chooseRange(from: string, to: string, holidays: HolidayMap, workWeekends = false) {
   return eachDayOfInterval({ start: parseISO(from), end: parseISO(to) })
-    .map(keyOf).filter(key => selectable(key, holidays));
+    .map(keyOf).filter(key => selectable(key, holidays, workWeekends));
 }
 
 export interface VacationBlock {
@@ -77,14 +77,14 @@ export interface VacationBlock {
   freeDays: number;
 }
 
-export function vacationBlocks(selected: Set<string>, holidays: HolidayMap, halfDays: boolean): VacationBlock[] {
+export function vacationBlocks(selected: Set<string>, holidays: HolidayMap, halfDays: boolean, workWeekends = false): VacationBlock[] {
   const groups: string[][] = [];
   for (const key of [...selected].sort()) {
     const group = groups.at(-1);
     const previous = group?.at(-1);
     const connected = previous && eachDayOfInterval({
       start: addDays(parseISO(previous), 1), end: parseISO(key),
-    }).every(date => keyOf(date) === key || !selectable(keyOf(date), holidays));
+    }).every(date => keyOf(date) === key || !selectable(keyOf(date), holidays, workWeekends));
     if (group && connected) group.push(key);
     else groups.push([key]);
   }
@@ -93,10 +93,10 @@ export function vacationBlocks(selected: Set<string>, holidays: HolidayMap, half
     let end = parseISO(days[days.length - 1]);
     // Half-day leave still contains work, so it cannot connect full days off.
     if (dayCost(days[0], halfDays) === 1) {
-      while (!selectable(keyOf(addDays(start, -1)), holidays)) start = addDays(start, -1);
+      while (!selectable(keyOf(addDays(start, -1)), holidays, workWeekends)) start = addDays(start, -1);
     }
     if (dayCost(days[days.length - 1], halfDays) === 1) {
-      while (!selectable(keyOf(addDays(end, 1)), holidays)) end = addDays(end, 1);
+      while (!selectable(keyOf(addDays(end, 1)), holidays, workWeekends)) end = addDays(end, 1);
     }
     return {
       days, cost: days.reduce((sum, key) => sum + dayCost(key, halfDays), 0),

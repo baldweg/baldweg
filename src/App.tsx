@@ -28,6 +28,7 @@ export default function App() {
   const [region, setRegion] = useState<Region>('state');
   const [budgetInput, setBudgetInput] = useState('30');
   const [halfDays, setHalfDays] = useState(false);
+  const [workWeekends, setWorkWeekends] = useState(false);
   const [from, setFrom] = useState(initialFrom);
   const [to, setTo] = useState(initialTo);
   const [draftFrom, setDraftFrom] = useState(initialFrom);
@@ -42,7 +43,7 @@ export default function App() {
   const holidayTo = `${Number(to.slice(0, 4)) + 1}-12-31`;
   const holidays = useMemo(() => holidaysFor(state, region, holidayFrom, holidayTo), [state, region, holidayFrom, holidayTo]);
   const months = useMemo(() => monthsFor(from, to), [from, to]);
-  const blocks = useMemo(() => vacationBlocks(selected, holidays, halfDays), [selected, holidays, halfDays]);
+  const blocks = useMemo(() => vacationBlocks(selected, holidays, halfDays, workWeekends), [selected, holidays, halfDays, workWeekends]);
   const used = blocks.reduce((sum, block) => sum + block.cost, 0);
   const budget = Number(budgetInput);
   const validBudget = budgetInput !== '' && Number.isFinite(budget) && budget >= 0 && Number.isInteger(budget * 2);
@@ -65,7 +66,7 @@ export default function App() {
 
   function changeLocation(nextState: string, nextRegion: Region) {
     const nextHolidays = holidaysFor(nextState, nextRegion, holidayFrom, holidayTo);
-    const next = new Set([...selected].filter(key => selectable(key, nextHolidays)));
+    const next = new Set([...selected].filter(key => selectable(key, nextHolidays, workWeekends)));
     const removed = selected.size - next.size;
     setState(nextState);
     setRegion(nextRegion);
@@ -96,6 +97,17 @@ export default function App() {
       return next;
     });
     setHighlight([]);
+  }
+
+  function changeWorkWeekends(enabled: boolean) {
+    const next = new Set([...selected].filter(key => selectable(key, holidays, enabled)));
+    const removed = selected.size - next.size;
+    setWorkWeekends(enabled);
+    setSelected(next);
+    setHighlight([]);
+    setNotice(enabled
+      ? 'Samstag und Sonntag zählen jetzt als Arbeitstage. Feiertage bleiben arbeitsfrei.'
+      : `Wochenenden sind jetzt arbeitsfrei.${removed ? ` ${removed} ausgewählte Wochenendtage wurden aus der Planung entfernt.` : ''}`);
   }
 
   return <div className="app-shell">
@@ -136,6 +148,11 @@ export default function App() {
             <label htmlFor="budget">Verfügbare Urlaubstage</label>
             <div className="input-suffix"><input id="budget" type="number" min="0" step="0.5" value={budgetInput} aria-invalid={!validBudget} onChange={e => setBudgetInput(e.target.value)} /><span>Tage</span></div>
             {!validBudget && <p className="error">Bitte eine positive Zahl oder 0 in Schritten von 0,5 eingeben.</p>}
+            <label className="toggle-row">
+              <span><strong>Wochenenden sind Arbeitstage</strong><small>Samstag und Sonntag berücksichtigen</small></span>
+              <input type="checkbox" role="switch" checked={workWeekends} onChange={e => changeWorkWeekends(e.target.checked)} />
+              <span className="switch-track"><span /></span>
+            </label>
             <label className="toggle-row">
               <span><strong>24. & 31. Dezember</strong><small>Je einen halben Tag berechnen</small></span>
               <input type="checkbox" role="switch" checked={halfDays} onChange={e => setHalfDays(e.target.checked)} />
@@ -186,7 +203,7 @@ export default function App() {
             <form onSubmit={e => {
               e.preventDefault();
               if (!selectionRangeValid) return;
-              const keys = chooseRange(rangeFrom, rangeTo, holidays);
+              const keys = chooseRange(rangeFrom, rangeTo, holidays, workWeekends);
               setSelected(previous => new Set([...previous, ...keys]));
               setNotice(keys.length ? 'Arbeitstage des Zeitraums wurden zur Auswahl hinzugefügt. Bereits gewählte Tage werden nicht doppelt gezählt.' : 'Dieser Zeitraum enthält keine auswählbaren Arbeitstage.');
             }}>
@@ -212,10 +229,11 @@ export default function App() {
                     const outside = key < from || key > to;
                     const isSelected = selected.has(key);
                     const isWeekend = weekend(date);
-                    const half = halfDays && dayCost(key, true) === 0.5 && !holiday && !isWeekend;
+                    const isWorkday = selectable(key, holidays, workWeekends);
+                    const half = halfDays && dayCost(key, true) === 0.5 && isWorkday;
                     const description = `${format(date, 'EEEE, d. MMMM yyyy', { locale: de })}${holiday ? `, ${holiday}` : ''}${isWeekend ? ', Wochenende' : ''}${half ? ', halber Urlaubstag' : ''}${outside ? ', außerhalb des Zeitraums' : ''}`;
                     return <button key={key} type="button" id={`day-${key}`} className={`day ${isWeekend ? 'weekend' : ''} ${holiday ? 'holiday' : ''} ${isSelected ? 'selected' : ''} ${outside ? 'outside' : ''} ${highlight.includes(key) ? 'highlight' : ''} ${key === keyOf(new Date()) ? 'today' : ''}`}
-                      disabled={outside || !!holiday || isWeekend} aria-label={description} aria-pressed={isSelected} title={description} onClick={() => toggleDay(key)}>
+                      disabled={outside || !isWorkday} aria-label={description} aria-pressed={isSelected} title={description} onClick={() => toggleDay(key)}>
                       {date.getDate()}{half && <span className="half-marker">½</span>}{holiday && <span className="holiday-dot" />}
                     </button>;
                   })}
@@ -226,6 +244,7 @@ export default function App() {
               </section>;
             })}
           </div>
+          <p className="calendar-help">Arbeitswoche: {workWeekends ? 'Montag bis Sonntag' : 'Montag bis Freitag'}. Gesetzliche Feiertage bleiben arbeitsfrei.</p>
         </section>
 
         <section className="vacations" aria-labelledby="vacations-title">

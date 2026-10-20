@@ -78,4 +78,31 @@ describe('Urlaubsberechnung', () => {
     expect(vacationBlocks(new Set(['2026-08-04', '2026-08-03']), holidays, false)[0].days)
       .toEqual(['2026-08-03', '2026-08-04']);
   });
+
+  it('wählt bei Wochenendarbeit auch Samstag und Sonntag, aber keine Feiertage', () => {
+    expect(selectable('2026-04-04', holidays, true)).toBe(true);
+    expect(selectable('2026-04-05', holidays, true)).toBe(true);
+    expect(selectable('2026-12-26', holidays, true)).toBe(false);
+    expect(chooseRange('2026-04-02', '2026-04-07', holidays, true))
+      .toEqual(['2026-04-02', '2026-04-04', '2026-04-05', '2026-04-07']);
+  });
+
+  it('verbindet bei Wochenendarbeit nur ausgewählte oder arbeitsfreie Tage', () => {
+    const days = new Set(['2026-08-07', '2026-08-10']);
+    expect(vacationBlocks(days, holidays, false)).toHaveLength(1);
+    const blocks = vacationBlocks(days, holidays, false, true);
+    expect(blocks).toHaveLength(2);
+    expect(blocks[0]).toMatchObject({ cost: 1, freeFrom: '2026-08-07', freeTo: '2026-08-07', freeDays: 1 });
+    expect(vacationBlocks(new Set(['2026-08-07', '2026-08-08', '2026-08-09', '2026-08-10']), holidays, false, true)[0])
+      .toMatchObject({ cost: 4, freeDays: 4 });
+    expect(vacationBlocks(new Set(['2026-12-31']), holidays, false, true)[0])
+      .toMatchObject({ freeTo: '2027-01-01', freeDays: 2 });
+  });
+
+  it('wendet die Halbtagsregel auch auf arbeitspflichtige Wochenenden an', () => {
+    expect(chooseRange('2028-12-24', '2028-12-24', holidays, true)).toEqual(['2028-12-24']);
+    expect(chooseRange('2028-12-24', '2028-12-24', holidays)).toEqual([]);
+    expect(vacationBlocks(new Set(['2028-12-24']), holidays, true, true)[0])
+      .toMatchObject({ cost: 0.5, freeDays: 0 });
+  });
 });

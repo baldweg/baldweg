@@ -34,7 +34,11 @@ Der Entwicklungsserver ist nur an die lokale Loopback-Adresse gebunden.
   Die örtliche Gültigkeit muss anhand des Arbeitsorts geprüft werden.
 - Planungszeitraum von 1970 bis 2099, einschließlich jahresübergreifender Auswahl.
   Nur berührte Monate werden gezeigt; Tage außerhalb sind gesperrt.
-- Arbeitswoche Montag bis Freitag. Wochenenden und Feiertage kosten keinen Urlaub.
+- Standardmäßig Arbeitswoche Montag bis Freitag. Über „Wochenenden sind Arbeitstage“
+  zählen auch Samstag und Sonntag als Arbeitstage und benötigen Urlaub. Dies gilt
+  für Einzelauswahl, Bereichsauswahl, Verbrauch und zusammenhängende Freizeit.
+  Beim Ausschalten werden ausgewählte Wochenendtage mit Hinweis entfernt.
+  Gesetzliche Feiertage bleiben in beiden Modi arbeitsfrei.
 - Einzelne Tage anklicken oder Arbeitstage eines Datumsbereichs hinzufügen.
 - Optional kosten der 24. und 31. Dezember jeweils 0,5 Urlaubstage, sofern sie
   Arbeitstage sind. Ohne diese betriebliche Sonderregel kosten sie jeweils 1 Tag.

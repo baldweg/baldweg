@@ -79,4 +79,33 @@ describe('baldweg Urlaubsplaner', () => {
     expect(screen.getByText('Platz für schöne Pläne.')).toBeInTheDocument();
     confirm.mockRestore();
   });
+
+  it('schaltet Wochenendarbeit für Auswahl, Bereich und Ortswechsel konsistent um', () => {
+    render(<App />);
+    fireEvent.change(screen.getByLabelText('Von'), { target: { value: '2026-04-01' } });
+    fireEvent.change(screen.getByLabelText('Bis'), { target: { value: '2026-04-30' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Zeitraum übernehmen' }));
+    const toggle = screen.getByRole('switch', { name: /Wochenenden sind Arbeitstage/ });
+    const saturday = screen.getByRole('button', { name: 'Samstag, 4. April 2026, Wochenende' });
+    expect(toggle).not.toBeChecked();
+    expect(saturday).toBeDisabled();
+    fireEvent.click(toggle);
+    expect(saturday).toBeEnabled();
+    expect(screen.getByText(/Arbeitswoche: Montag bis Sonntag/)).toBeInTheDocument();
+    fireEvent.click(saturday);
+    expect(saturday).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.change(screen.getByLabelText('Bundesland'), { target: { value: 'BY' } });
+    expect(saturday).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.change(screen.getByLabelText('Beginn'), { target: { value: '2026-04-02' } });
+    fireEvent.change(screen.getByLabelText('Ende'), { target: { value: '2026-04-07' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Arbeitstage hinzufügen' }));
+    expect(screen.getByText('4 Urlaubstage')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Montag, 6. April 2026, Ostermontag' })).toBeDisabled();
+    fireEvent.click(toggle);
+    expect(saturday).toBeDisabled();
+    expect(saturday).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByText('2 Urlaubstage')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('2 ausgewählte Wochenendtage');
+    expect(localStorage.length).toBe(0);
+  });
 });
