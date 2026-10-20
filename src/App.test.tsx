@@ -7,14 +7,15 @@ beforeEach(() => {
   document.documentElement.dataset.theme = 'dark';
 });
 
-describe('Urlaubsplaner', () => {
+describe('baldweg Urlaubsplaner', () => {
   it('startet dunkel und speichert ausschließlich das Theme', () => {
     const { unmount } = render(<App />);
+    expect(screen.getByRole('link', { name: 'baldweg Startseite' })).toHaveTextContent('baldweg.');
     const toggle = screen.getByRole('switch', { name: 'Heller Modus' });
     expect(toggle).toHaveAttribute('aria-checked', 'false');
     fireEvent.click(toggle);
     expect(document.documentElement.dataset.theme).toBe('light');
-    expect(localStorage.getItem('auszeit-theme')).toBe('light');
+    expect(localStorage.getItem('baldweg-theme')).toBe('light');
     unmount();
     render(<App />);
     expect(screen.getByRole('switch', { name: 'Heller Modus' })).toHaveAttribute('aria-checked', 'true');

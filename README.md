@@ -1,8 +1,8 @@
-# Auszeit – Urlaubsplaner
+# baldweg – Urlaubsplaner
 
 Statische, deutschsprachige React-/TypeScript-Anwendung mit Vite. Kein Backend,
 keine Anmeldung und keine Übertragung der Urlaubsplanung. Nur die Auswahl von
-Dark/Light Mode wird im Local Storage unter `auszeit-theme` gespeichert. Standard
+Dark/Light Mode wird im Local Storage unter `baldweg-theme` gespeichert. Standard
 ist Dark Mode; Planung und Einstellungen gehen beim Neuladen verloren.
 
 ## Lokal starten

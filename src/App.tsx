@@ -56,7 +56,7 @@ export default function App() {
     setTheme(next);
     document.documentElement.dataset.theme = next;
     try {
-      localStorage.setItem('auszeit-theme', next);
+      localStorage.setItem('baldweg-theme', next);
     } catch (error) {
       console.error('Darstellung konnte nicht gespeichert werden.', error);
       setNotice('Dein Browser blockiert den lokalen Speicher. Die Darstellung gilt nur bis zum Neuladen.');
@@ -100,7 +100,7 @@ export default function App() {
 
   return <div className="app-shell">
     <header className="topbar">
-      <a className="brand" href="#" aria-label="Auszeit Startseite"><span className="brand-icon"><Icon name="leaf" /></span>auszeit<span className="brand-dot">.</span></a>
+      <a className="brand" href="#" aria-label="baldweg Startseite"><span className="brand-icon"><Icon name="leaf" /></span>baldweg<span className="brand-dot">.</span></a>
       <span className="header-caption">Weniger planen. Mehr vorfreuen.</span>
       <button className="theme-toggle" type="button" role="switch" aria-checked={theme === 'light'} aria-label="Heller Modus" onClick={changeTheme}>
         <Icon name={theme === 'dark' ? 'moon' : 'sun'} /><span>{theme === 'dark' ? 'Dark' : 'Light'}</span><span className="switch-track"><span /></span>
@@ -226,11 +226,10 @@ export default function App() {
               </section>;
             })}
           </div>
-          <p className="calendar-help">Klicke auf einen Arbeitstag, um ihn auszuwählen oder zu entfernen. Arbeitswoche: Montag bis Freitag.</p>
         </section>
 
         <section className="vacations" aria-labelledby="vacations-title">
-          <div className="section-heading"><div><div className="eyebrow">VORFREUDE IN LISTENFORM</div><h2 id="vacations-title">Deine geplanten Auszeiten <span className="count-badge">{blocks.length}</span></h2></div><span className="muted">{numberOf(used)} Urlaubstage gesamt</span></div>
+          <div className="section-heading"><div><h2 id="vacations-title">Deine geplanten Auszeiten <span className="count-badge">{blocks.length}</span></h2></div><span className="muted">{numberOf(used)} Urlaubstage gesamt</span></div>
           {!blocks.length ? <div className="empty-state"><span className="empty-icon"><Icon name="leaf" /></span><h3>Platz für schöne Pläne.</h3><p>Wähle oben deine ersten Urlaubstage aus.<br />Deine Auszeiten erscheinen dann hier.</p></div> :
             <div className="vacation-list">{blocks.map((block, index) => <article className="vacation-row" key={block.days[0]}>
               <span className="block-number">{String(index + 1).padStart(2, '0')}</span>
