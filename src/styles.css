@@ -61,11 +61,39 @@ button { transition: background .15s, border-color .15s, transform .15s; }
 [aria-checked="true"] .switch-track, input:checked + .switch-track { background: var(--accent); }
 [aria-checked="true"] .switch-track > span, input:checked + .switch-track > span { transform: translateX(14px); background: var(--accent-ink); }
 .workspace { display: grid; grid-template-columns: 278px minmax(0, 1fr); max-width: 1920px; margin: auto; }
+.workspace[hidden] { display: none; }
+.imprint-page { max-width: 840px; margin: 0 auto; padding: 40px 24px; }
+.back-link { display: inline-block; color: var(--muted); font-size: 13px; margin-bottom: 36px; text-underline-offset: 4px; }
+.imprint-page > .alert { margin: 24px 0; }
+.imprint-card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 24px; margin: 20px 0; }
+.imprint-card p { color: var(--muted); font-size: 14px; line-height: 1.9; }
 .sidebar { padding: 32px 24px; border-right: 1px solid var(--line); display: flex; flex-direction: column; background: var(--surface); }
 .sidebar summary { font-size: 16px; font-weight: 650; list-style: none; }
 .sidebar summary span { float: right; color: var(--muted); }
 .sidebar-intro { color: var(--muted); font-size: 12px; line-height: 1.6; margin-top: 8px; }
 .setting-section { padding: 25px 0; border-bottom: 1px solid var(--line); }
+.person-settings form { margin-top: 18px; }
+.person-settings form .button { margin-top: 10px; }
+.active-person { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; color: var(--muted); font-size: 13px; margin: 24px 0 -12px; overflow-wrap: anywhere; }
+.active-person strong { color: var(--text); }
+.people-legend { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
+.people-legend > span { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line); border-radius: 5px; padding: 6px 8px; font-size: 11px; min-width: 0; overflow-wrap: anywhere; }
+.people-legend > span.active { border-color: var(--accent); background: var(--raised); }
+.person-select { display: inline-flex; align-items: center; gap: 7px; min-width: 0; overflow-wrap: anywhere; text-align: left; font: inherit; background: none; border: none; border-radius: 3px; padding: 2px 0; }
+.person-select:hover { color: var(--accent); }
+.person-remove { background: none; border: none; border-radius: 3px; padding: 0 4px; color: var(--muted); font-size: 18px; line-height: 1; }
+.person-remove:hover:not(:disabled) { background: var(--raised); color: var(--danger); }
+.person-remove:disabled { opacity: .35; }
+.confirmation-dialog { margin: auto; width: min(440px, calc(100% - 32px)); max-height: calc(100dvh - 32px); overflow: auto; padding: 28px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--text); box-shadow: 0 24px 80px #0006; }
+.confirmation-dialog::backdrop { background: #0009; backdrop-filter: blur(4px); }
+.confirmation-dialog h2 { overflow-wrap: anywhere; }
+.confirmation-dialog p { color: var(--muted); font-size: 13px; line-height: 1.7; margin: 16px 0 24px; }
+.dialog-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; }
+.button.destructive { background: var(--danger); color: var(--bg); border-color: transparent; }
+.people-legend i, .active-person i { display: inline-block; flex-shrink: 0; width: 10px; height: 10px; border: 1px solid #172222; border-radius: 3px; }
+.calendar-help + .range-picker { margin-top: 14px; }
+.person-markers { position: absolute; bottom: 1px; left: 2px; right: 2px; display: flex; gap: 1px; height: 4px; pointer-events: none; }
+.person-markers > span { flex: 1; min-width: 0; border-radius: 1px; box-shadow: 0 0 0 0.5px #172222; }
 .section-label { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: 13px; margin-bottom: 21px; }
 .section-label > span { color: var(--accent); font-size: 10px; font-weight: 500; border: 1px solid var(--line); border-radius: 5px; padding: 3px 5px; }
 label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
@@ -218,6 +246,8 @@ h3 { margin: 0; font-weight: 600; font-size: 14px; }
   .page-footer { flex-direction: column; gap: 8px; }
 }
 @media (max-width: 470px) {
+  .topbar { gap: 12px; }
+  .theme-toggle > span:not(.switch-track) { display: none; }
   .months-grid { grid-template-columns: minmax(0, 1fr); }
   .month-card { padding: 20px; }
   .days-grid { grid-auto-rows: 35px; gap: 5px; }

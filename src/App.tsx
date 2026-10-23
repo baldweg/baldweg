@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { format, parseISO } from 'date-fns';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import {
   STATES, chooseRange, dayCost, displayDate, holidaysFor, keyOf, monthDays,
@@ -12,6 +12,48 @@ const initialFrom = `${initialYear}-01-01`;
 const initialTo = `${initialYear}-12-31`;
 const weekdays = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 
+interface Person {
+  id: string;
+  name: string;
+  color: string;
+  state: string;
+  region: Region;
+  budgetInput: string;
+  halfDays: boolean;
+  workWeekends: boolean;
+  selected: Set<string>;
+}
+
+function createPerson(name: string, color: string): Person {
+  return {
+    id: crypto.randomUUID(), name, color, state: 'NW', region: 'state',
+    budgetInput: '30', halfDays: false, workWeekends: false, selected: new Set(),
+  };
+}
+
+function DeletePersonDialog({ person, onCancel, onDelete }: {
+  person: Person;
+  onCancel: () => void;
+  onDelete: () => void;
+}) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = dialogRef.current!;
+    dialog.showModal();
+    return () => dialog.close();
+  }, []);
+
+  return <dialog ref={dialogRef} className="confirmation-dialog" aria-labelledby="delete-title" aria-describedby="delete-description" onCancel={onCancel}>
+    <div className="eyebrow">PERSON ENTFERNEN</div>
+    <h2 id="delete-title">{person.name} löschen?</h2>
+    <p id="delete-description">Die Person und ihre gesamte Urlaubsplanung werden entfernt. Das kann nicht rückgängig gemacht werden.</p>
+    <div className="dialog-actions">
+      <button type="button" className="button secondary" autoFocus onClick={onCancel}>Abbrechen</button>
+      <button type="button" className="button destructive" onClick={onDelete}>Person löschen</button>
+    </div>
+  </dialog>;
+}
+
 function Icon({ name }: { name: 'sun' | 'moon' | 'leaf' | 'arrow' }) {
   return <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     {name === 'sun' && <><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5" /></>}
@@ -22,20 +64,50 @@ function Icon({ name }: { name: 'sun' | 'moon' | 'leaf' | 'arrow' }) {
 }
 
 export default function App() {
+  const [showImprint, setShowImprint] = useState(() => window.location.hash === '#impressum');
+  const imprintHeading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    const navigate = () => setShowImprint(window.location.hash === '#impressum');
+    window.addEventListener('hashchange', navigate);
+    return () => window.removeEventListener('hashchange', navigate);
+  }, []);
+  useEffect(() => {
+    document.title = showImprint ? 'Impressum · urlaubsjahr' : 'urlaubsjahr · Dein Urlaubsplaner';
+    if (showImprint) {
+      imprintHeading.current?.focus();
+      window.scrollTo(0, 0);
+    }
+  }, [showImprint]);
   const [theme, setTheme] = useState(() => document.documentElement.dataset.theme === 'light' ? 'light' : 'dark');
   const [notice, setNotice] = useState('');
-  const [state, setState] = useState('NW');
-  const [region, setRegion] = useState<Region>('state');
-  const [budgetInput, setBudgetInput] = useState('30');
-  const [halfDays, setHalfDays] = useState(false);
-  const [workWeekends, setWorkWeekends] = useState(false);
+  const [people, setPeople] = useState<Person[]>(() => [createPerson('Ich', 'hsl(88, 60%, 70%)')]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [personName, setPersonName] = useState('');
+  const [personError, setPersonError] = useState('');
+  const [colorIndex, setColorIndex] = useState(1);
+  const [personToDelete, setPersonToDelete] = useState<Person | null>(null);
+  const person = people.find(item => item.id === activeId) ?? people[0];
+  const { state, region, budgetInput, halfDays, workWeekends, selected } = person;
+
+  function updatePerson(update: Partial<Person>) {
+    setPeople(previous => previous.map(item => item.id === person.id ? { ...item, ...update } : item));
+  }
+
+  function selectPerson(id: string) {
+    setActiveId(id); setHighlight([]); setRangeFrom(''); setRangeTo(''); setNotice('');
+  }
+
+  function setSelected(value: Set<string> | ((previous: Set<string>) => Set<string>)) {
+    setPeople(previous => previous.map(item => item.id === person.id
+      ? { ...item, selected: typeof value === 'function' ? value(item.selected) : value }
+      : item));
+  }
   const [from, setFrom] = useState(initialFrom);
   const [to, setTo] = useState(initialTo);
   const [draftFrom, setDraftFrom] = useState(initialFrom);
   const [draftTo, setDraftTo] = useState(initialTo);
   const [rangeFrom, setRangeFrom] = useState('');
   const [rangeTo, setRangeTo] = useState('');
-  const [selected, setSelected] = useState<Set<string>>(new Set());
   const [highlight, setHighlight] = useState<string[]>([]);
 
   // Include adjacent years so free-time extensions across New Year remain correct.
@@ -57,7 +129,7 @@ export default function App() {
     setTheme(next);
     document.documentElement.dataset.theme = next;
     try {
-      localStorage.setItem('baldweg-theme', next);
+      localStorage.setItem('urlaubsjahr-theme', next);
     } catch (error) {
       console.error('Darstellung konnte nicht gespeichert werden.', error);
       setNotice('Dein Browser blockiert den lokalen Speicher. Die Darstellung gilt nur bis zum Neuladen.');
@@ -68,9 +140,7 @@ export default function App() {
     const nextHolidays = holidaysFor(nextState, nextRegion, holidayFrom, holidayTo);
     const next = new Set([...selected].filter(key => selectable(key, nextHolidays, workWeekends)));
     const removed = selected.size - next.size;
-    setState(nextState);
-    setRegion(nextRegion);
-    setSelected(next);
+    updatePerson({ state: nextState, region: nextRegion, selected: next });
     setHighlight([]);
     setNotice(removed ? `${removed} ausgewählte Tage sind am neuen Ort Feiertage und wurden aus der Auswahl entfernt.` : 'Feiertage wurden für deinen Arbeitsort aktualisiert.');
   }
@@ -78,12 +148,14 @@ export default function App() {
   function applyPeriod(event: React.FormEvent) {
     event.preventDefault();
     if (!rangeValid) return;
-    const next = new Set([...selected].filter(key => key >= draftFrom && key <= draftTo));
-    const removed = selected.size - next.size;
-    if (removed && !window.confirm(`${removed} ausgewählte Urlaubstage liegen außerhalb des neuen Zeitraums und werden entfernt. Fortfahren?`)) return;
+    const next = people.map(item => ({
+      ...item, selected: new Set([...item.selected].filter(key => key >= draftFrom && key <= draftTo)),
+    }));
+    const removed = people.reduce((sum, item, index) => sum + item.selected.size - next[index].selected.size, 0);
+    if (removed && !window.confirm(`${removed} ausgewählte Urlaubstage aller Personen liegen außerhalb des neuen Zeitraums und werden entfernt. Fortfahren?`)) return;
     setFrom(draftFrom);
     setTo(draftTo);
-    setSelected(next);
+    setPeople(next);
     setHighlight([]);
     setRangeFrom('');
     setRangeTo('');
@@ -102,8 +174,7 @@ export default function App() {
   function changeWorkWeekends(enabled: boolean) {
     const next = new Set([...selected].filter(key => selectable(key, holidays, enabled)));
     const removed = selected.size - next.size;
-    setWorkWeekends(enabled);
-    setSelected(next);
+    updatePerson({ workWeekends: enabled, selected: next });
     setHighlight([]);
     setNotice(enabled
       ? 'Samstag und Sonntag zählen jetzt als Arbeitstage. Feiertage bleiben arbeitsfrei.'
@@ -112,18 +183,71 @@ export default function App() {
 
   return <div className="app-shell">
     <header className="topbar">
-      <a className="brand" href="#" aria-label="baldweg Startseite"><span className="brand-icon"><Icon name="leaf" /></span>baldweg<span className="brand-dot">.</span></a>
+      <a className="brand" href="#" aria-label="urlaubsjahr Startseite"><span className="brand-icon"><Icon name="leaf" /></span>urlaubsjahr<span className="brand-dot">.</span></a>
       <span className="header-caption">Weniger planen. Mehr vorfreuen.</span>
       <button className="theme-toggle" type="button" role="switch" aria-checked={theme === 'light'} aria-label="Heller Modus" onClick={changeTheme}>
         <Icon name={theme === 'dark' ? 'moon' : 'sun'} /><span>{theme === 'dark' ? 'Dark' : 'Light'}</span><span className="switch-track"><span /></span>
       </button>
     </header>
 
-    <div className="workspace">
+    {showImprint && <main className="imprint-page" aria-labelledby="imprint-title">
+      <a className="back-link" href="#">← Zurück zum Urlaubsplaner</a>
+      <div className="eyebrow">RECHTLICHES</div>
+      <h1 id="imprint-title" ref={imprintHeading} tabIndex={-1}>Impressum</h1>
+      <p className="alert"><strong>Unvollständige Vorlage:</strong> Diese Seite enthält Platzhalter und ist kein fertiges Impressum. Vor der Veröffentlichung müssen die tatsächlichen Betreiber- und Kontaktangaben ergänzt und die für den Betreiber geltenden Informationspflichten geprüft werden.</p>
+      <section className="imprint-card" aria-labelledby="operator-title">
+        <h2 id="operator-title">Anbieter gemäß § 18 Abs. 1 MStV</h2>
+        <p>[Vollständiger Vor- und Nachname]<br />[Straße und Hausnummer – ladungsfähige Anschrift, kein Postfach]<br />[Postleitzahl und Ort]<br />[Land]</p>
+      </section>
+      <section className="imprint-card" aria-labelledby="contact-title">
+        <h2 id="contact-title">Kontakt</h2>
+        <p>E-Mail: [Erreichbare E-Mail-Adresse]</p>
+      </section>
+      <section className="imprint-card" aria-labelledby="project-title">
+        <h2 id="project-title">Über dieses Angebot</h2>
+        <p>urlaubsjahr ist ein privates Hobbyprojekt zur Urlaubsplanung. Das Angebot enthält keine Werbung und wird ohne Einnahmen betrieben.</p>
+      </section>
+      <section className="imprint-card" aria-labelledby="data-note-title">
+        <h2 id="data-note-title">Hinweis zur Datenverarbeitung</h2>
+        <p>Die Website wird über Cloudflare Pages bereitgestellt. Anbieter ist Cloudflare, Inc., 101 Townsend St, San Francisco, CA 94107, USA. Beim Abruf verarbeitet Cloudflare technische Verbindungsdaten, insbesondere die IP-Adresse, um die Website auszuliefern und die Sicherheit des Dienstes zu gewährleisten. Die Verarbeitung kann auch außerhalb der EU erfolgen. Auch eine statische Website ist deshalb nicht frei von personenbezogener Datenverarbeitung.</p>
+        <p>Eingegebene Personennamen, Einstellungen und Urlaubstage werden von der Anwendung ausschließlich im Arbeitsspeicher des Browsers verarbeitet und nicht an den Betreiber oder Cloudflare übertragen. Beim Neuladen gehen diese Eingaben verloren. Für die Mehrpersonenplanung können statt echter Namen auch frei gewählte Bezeichnungen verwendet werden.</p>
+        <p>Nur die gewählte Darstellung wird im Local Storage unter <code>urlaubsjahr-theme</code> gespeichert und beim nächsten Aufruf gelesen. Dieser Eintrag bleibt bis zum Löschen der Websitedaten im Browser erhalten. Die Anwendung verwendet keine eigenen Cookies, Analysewerkzeuge, Werbung oder extern geladenen Schriftarten.</p>
+        <p>Weitere Informationen: <a href="https://www.cloudflare.com/privacypolicy/">Datenschutzerklärung von Cloudflare</a>.</p>
+        <p><strong>Vor Veröffentlichung prüfen:</strong> Diese technischen Hinweise ersetzen keine vollständige Datenschutzerklärung des Betreibers. Die für den konkreten Betrieb erforderlichen Datenschutzinformationen sind gesondert zu ergänzen.</p>
+      </section>
+      <footer className="page-footer"><a href="#">Zurück zu urlaubsjahr</a></footer>
+    </main>}
+    <div className="workspace" hidden={showImprint}>
       <aside className="sidebar" aria-label="Einstellungen">
         <details open>
           <summary>Deine Einstellungen <span>⌄</span></summary>
-          <p className="sidebar-intro">Ein guter Urlaub beginnt mit einem Plan.</p>
+          <section className="setting-section person-settings">
+            <div className="section-label">Personen</div>
+            <label htmlFor="person">Planung bearbeiten für</label>
+            <select id="person" value={person.id} onChange={e => selectPerson(e.target.value)}>
+              {people.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+            </select>
+            <form onSubmit={event => {
+              event.preventDefault();
+              const name = personName.trim();
+              if (!name || people.some(item => item.name.toLocaleLowerCase('de-DE') === name.toLocaleLowerCase('de-DE'))) {
+                setPersonError('Bitte einen eindeutigen, nicht leeren Namen eingeben.');
+                return;
+              }
+              const added = createPerson(name, `hsl(${(88 + colorIndex * 137.508) % 360}, 65%, 70%)`);
+              setPeople(previous => [...previous, added]);
+              setActiveId(added.id); setColorIndex(previous => previous + 1);
+              setPersonName(''); setPersonError(''); setHighlight([]); setRangeFrom(''); setRangeTo('');
+              setNotice(`${name} wurde mit einer leeren Planung und Standardeinstellungen angelegt.`);
+            }}>
+              <label htmlFor="person-name">Neue Person</label>
+              <input id="person-name" value={personName} maxLength={60} aria-invalid={!!personError} onChange={e => {
+                setPersonName(e.target.value); setPersonError('');
+              }} placeholder="Name" />
+              {personError && <p className="error" role="alert">{personError}</p>}
+              <button className="button secondary full-width">Person hinzufügen</button>
+            </form>
+          </section>
           <section className="setting-section">
             <div className="section-label"><span>01</span> Arbeitsort</div>
             <label htmlFor="state">Bundesland</label>
@@ -146,7 +270,7 @@ export default function App() {
           <section className="setting-section">
             <div className="section-label"><span>02</span> Dein Urlaubskonto</div>
             <label htmlFor="budget">Verfügbare Urlaubstage</label>
-            <div className="input-suffix"><input id="budget" type="number" min="0" step="0.5" value={budgetInput} aria-invalid={!validBudget} onChange={e => setBudgetInput(e.target.value)} /><span>Tage</span></div>
+            <div className="input-suffix"><input id="budget" type="number" min="0" step="0.5" value={budgetInput} aria-invalid={!validBudget} onChange={e => updatePerson({ budgetInput: e.target.value })} /><span>Tage</span></div>
             {!validBudget && <p className="error">Bitte eine positive Zahl oder 0 in Schritten von 0,5 eingeben.</p>}
             <label className="toggle-row">
               <span><strong>Wochenenden sind Arbeitstage</strong><small>Samstag und Sonntag berücksichtigen</small></span>
@@ -155,13 +279,14 @@ export default function App() {
             </label>
             <label className="toggle-row">
               <span><strong>24. & 31. Dezember</strong><small>Je einen halben Tag berechnen</small></span>
-              <input type="checkbox" role="switch" checked={halfDays} onChange={e => setHalfDays(e.target.checked)} />
+              <input type="checkbox" role="switch" checked={halfDays} onChange={e => updatePerson({ halfDays: e.target.checked })} />
               <span className="switch-track"><span /></span>
             </label>
             <p className="field-help">Zusammen 1 statt 2 Urlaubstage. Gilt nur an Arbeitstagen, nach betrieblicher Regelung.</p>
           </section>
           <section className="setting-section">
             <div className="section-label"><span>03</span> Dein Planungshorizont</div>
+            <p className="field-help">Dieser Zeitraum gilt gemeinsam für alle Personen.</p>
             <form onSubmit={applyPeriod}>
               <label htmlFor="period-from">Von</label>
               <input id="period-from" type="date" min="1970-01-01" max="2099-12-31" required value={draftFrom} onChange={e => setDraftFrom(e.target.value)} />
@@ -172,7 +297,7 @@ export default function App() {
             </form>
           </section>
           <button className="reset-button" type="button" disabled={!selected.size} onClick={() => {
-            if (window.confirm('Alle ausgewählten Urlaubstage entfernen?')) {
+            if (window.confirm(`Alle ausgewählten Urlaubstage von ${person.name} entfernen?`)) {
               setSelected(new Set()); setHighlight([]); setNotice('Deine Urlaubsauswahl wurde geleert.');
             }
           }}>Auswahl zurücksetzen</button>
@@ -186,6 +311,7 @@ export default function App() {
           <span className="year-badge">{from.slice(0, 4) === to.slice(0, 4) ? from.slice(0, 4) : `${from.slice(0, 4)} – ${to.slice(0, 4)}`}</span>
         </div>
 
+        <p className="active-person"><i style={{ backgroundColor: person.color }} />Du planst für <strong>{person.name}</strong></p>
         <section className="stats" aria-label="Urlaubskonto" aria-live="polite">
           <div className="stat"><span>Verfügbar</span><div><strong>{validBudget ? numberOf(budget) : '–'}</strong><small>Tage</small></div></div>
           <div className="stat"><span>Verplant</span><div><strong>{numberOf(used)}</strong><small>Tage</small></div></div>
@@ -198,6 +324,15 @@ export default function App() {
           <div className="section-heading"><div><h2 id="calendar-title">Dein Kalender</h2><p>{displayDate(from)} – {displayDate(to)} <span className="dot-separator">·</span> {stateName}</p></div>
             <div className="legend"><span><i className="legend-selected" />Urlaub</span><span><i className="legend-holiday" />Feiertag</span><span><i className="legend-weekend" />Wochenende</span></div>
           </div>
+          <div className="people-legend" aria-label="Personenfarben">
+            {people.map(item => <span key={item.id} className={item.id === person.id ? 'active' : ''}>
+              <button className="person-select" type="button" aria-label={`${item.name} auswählen`} aria-pressed={item.id === person.id} onClick={() => selectPerson(item.id)}>
+                <i style={{ backgroundColor: item.color }} />{item.name}{item.id === person.id ? ' (ausgewählt)' : ''}
+              </button>
+              <button className="person-remove" type="button" aria-label={`${item.name} entfernen`} title={`${item.name} entfernen`} disabled={people.length === 1} onClick={() => setPersonToDelete(item)}>×</button>
+            </span>)}
+          </div>
+          <p className="calendar-help">Feiertage und auswählbare Arbeitstage gelten für {person.name}. Farbmarkierungen zeigen den Urlaub aller Personen.</p>
           <details className="range-picker">
             <summary><span>＋</span> Mehrere Tage auf einmal auswählen</summary>
             <form onSubmit={e => {
@@ -231,10 +366,15 @@ export default function App() {
                     const isWeekend = weekend(date);
                     const isWorkday = selectable(key, holidays, workWeekends);
                     const half = halfDays && dayCost(key, true) === 0.5 && isWorkday;
+                    const vacationers = people.filter(item => item.selected.has(key));
                     const description = `${format(date, 'EEEE, d. MMMM yyyy', { locale: de })}${holiday ? `, ${holiday}` : ''}${isWeekend ? ', Wochenende' : ''}${half ? ', halber Urlaubstag' : ''}${outside ? ', außerhalb des Zeitraums' : ''}`;
                     return <button key={key} type="button" id={`day-${key}`} className={`day ${isWeekend ? 'weekend' : ''} ${holiday ? 'holiday' : ''} ${isSelected ? 'selected' : ''} ${outside ? 'outside' : ''} ${highlight.includes(key) ? 'highlight' : ''} ${key === keyOf(new Date()) ? 'today' : ''}`}
-                      disabled={outside || !isWorkday} aria-label={description} aria-pressed={isSelected} title={description} onClick={() => toggleDay(key)}>
+                      style={isSelected ? { backgroundColor: person.color, color: '#172222' } : undefined}
+                      disabled={outside || !isWorkday} aria-label={description} aria-describedby={vacationers.length ? `people-${key}` : undefined} aria-pressed={isSelected} title={`${description}${vacationers.length ? ` · Urlaub: ${vacationers.map(item => item.name).join(', ')}` : ''}`} onClick={() => toggleDay(key)}>
                       {date.getDate()}{half && <span className="half-marker">½</span>}{holiday && <span className="holiday-dot" />}
+                      {vacationers.length > 0 && <span id={`people-${key}`} className="person-markers" role="img" aria-label={`Urlaub: ${vacationers.map(item => item.name).join(', ')}`}>
+                        {vacationers.map(item => <span key={item.id} style={{ backgroundColor: item.color }} />)}
+                      </span>}
                     </button>;
                   })}
                 </div>
@@ -265,8 +405,16 @@ export default function App() {
               }}>×</button>
             </article>)}</div>}
         </section>
-        <footer className="page-footer"><span>Für mehr Zeit, die dir gehört.</span><span>Planung ohne Gewähr · Betriebliche Regelungen beachten</span></footer>
+        <footer className="page-footer"><span>Für mehr Zeit, die dir gehört.</span><span>Planung ohne Gewähr · Betriebliche Regelungen beachten</span><a href="#impressum">Impressum</a></footer>
       </main>
     </div>
+    {personToDelete && <DeletePersonDialog person={personToDelete} onCancel={() => setPersonToDelete(null)} onDelete={() => {
+      setPeople(previous => previous.filter(item => item.id !== personToDelete.id));
+      if (personToDelete.id === person.id) {
+        setActiveId(null); setHighlight([]); setRangeFrom(''); setRangeTo('');
+      }
+      setNotice(`${personToDelete.name} wurde entfernt.`);
+      setPersonToDelete(null);
+    }} />}
   </div>;
 }
